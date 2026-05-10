@@ -25,7 +25,6 @@ app.use(notFoundHandler);
 // global error handler
 app.use(errorHandler);
 
-
 try {
   await connectDB();
   app.listen(PORT, () => {
@@ -35,5 +34,3 @@ try {
   console.error(err);
   process.exit(1);
 }
-
-
