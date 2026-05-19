@@ -1,6 +1,11 @@
-import mongoose from "mongoose";
 import { type Request, type Response, type NextFunction } from "express";
 import { TaskModel } from "../models/task.model.js";
+import { getTaskOrFail } from "../utils/getTaskOrFail.js";
+import { success, error } from "../utils/response.js";
+import type {
+  CreateTaskInput,
+  UpdateTaskInput,
+} from "../schemas/task.schema.js";
 
 const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -29,8 +34,7 @@ const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
       TaskModel.countDocuments(filter),
     ]);
 
-    return res.status(200).json({
-      tasks,
+    return success(res, tasks, undefined, 200, {
       total,
       page: pageNum,
       limit: limitNum,
@@ -43,12 +47,11 @@ const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
 const getAllTasksAdmin = async (
   _req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
   try {
     const tasks = await TaskModel.find();
-
-    return res.status(200).json(tasks);
+    return success(res, tasks);
   } catch (err) {
     return next(err);
   }
@@ -57,18 +60,8 @@ const getAllTasksAdmin = async (
 const getTaskById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params["id"] as string;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid ID" });
-    }
-
-    const task = await TaskModel.findById(id);
-
-    if (!task) {
-      return res.status(404).json({ message: "Task not found" });
-    }
-
-    return res.status(200).json(task);
+    const task = await getTaskOrFail(id);
+    return success(res, task);
   } catch (err) {
     return next(err);
   }
@@ -76,24 +69,15 @@ const getTaskById = async (req: Request, res: Response, next: NextFunction) => {
 
 const createTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const newTask = req.body;
-
-    if (!newTask.title || !newTask.description) {
-      return res
-        .status(400)
-        .json({ message: "Title and description are required" });
-    }
+    const taskData = req.body as CreateTaskInput;
 
     const task = await TaskModel.create({
-      ...newTask,
-      createdBy: req.user?.["userId"],
+      ...taskData,
+      createdBy: req.user?.["userId"] ?? "",
     });
 
-    return res.status(201).json({ task, message: "Task created successfully" });
+    return success(res, task, "Task created successfully", 201);
   } catch (err) {
-    if (err instanceof mongoose.Error.ValidationError) {
-      return res.status(400).json({ message: err.message });
-    }
     return next(err);
   }
 };
@@ -101,33 +85,20 @@ const createTask = async (req: Request, res: Response, next: NextFunction) => {
 const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params["id"] as string;
+    const taskData = req.body as UpdateTaskInput;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid ID" });
-    }
-
-    const newTask = req.body;
-
-    if (!Object.keys(newTask).length)
-      return res.status(400).json({ message: "No fields to update" });
-
-    const task = await TaskModel.findById(id);
-
-    if (!task) return res.status(404).json({ message: "Task not found" });
+    const task = await getTaskOrFail(id);
 
     if (task.createdBy.toString() !== req.user?.["userId"]) {
-      return res
-        .status(403)
-        .json({ message: "You are not authorized to update this task" });
+      return error(res, "You are not authorized to update this task", 403);
     }
 
-    await TaskModel.findByIdAndUpdate(id, newTask, { new: true });
+    const updatedTask = await TaskModel.findByIdAndUpdate(id, taskData, {
+      new: true,
+    });
 
-    return res.status(200).json({ message: "Task updated successfully" });
+    return success(res, updatedTask, "Task updated successfully");
   } catch (err) {
-    if (err instanceof mongoose.Error.ValidationError) {
-      return res.status(400).json({ message: err.message });
-    }
     return next(err);
   }
 };
@@ -136,23 +107,15 @@ const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params["id"] as string;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid ID" });
-    }
-
-    const task = await TaskModel.findById(id);
-
-    if (!task) return res.status(404).json({ message: "Task not found" });
+    const task = await getTaskOrFail(id);
 
     if (task.createdBy.toString() !== req.user?.["userId"]) {
-      return res
-        .status(403)
-        .json({ message: "You are not authorized to update this task" });
+      return error(res, "You are not authorized to delete this task", 403);
     }
 
     await TaskModel.findByIdAndDelete(id);
 
-    return res.status(200).json({ message: "Task deleted successfully" });
+    return success(res, null, "Task deleted successfully");
   } catch (err) {
     return next(err);
   }

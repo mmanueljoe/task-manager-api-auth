@@ -9,6 +9,10 @@ import {
 } from "../controllers/tasks.controller.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRole } from "../middleware/authorizeRole.js";
+import { attachTask } from "../middleware/attachTask.js";
+import { authorizeOwner } from "../middleware/authorizeOwner.js";
+import { validate } from "../middleware/validate.js";
+import { createTaskSchema, updateTaskSchema } from "../schemas/task.schema.js";
 
 const taskRouter = express.Router();
 
@@ -18,12 +22,12 @@ taskRouter.get("/", getAllTasks);
 
 taskRouter.get("/admin/all", authorizeRole("admin"), getAllTasksAdmin);
 
-taskRouter.get("/:id", getTaskById);
+taskRouter.get("/:id", attachTask, getTaskById);
 
-taskRouter.post("/", createTask);
+taskRouter.post("/", validate(createTaskSchema), createTask);
 
-taskRouter.put("/:id", updateTask);
+taskRouter.put("/:id", attachTask, validate(updateTaskSchema), updateTask);
 
-taskRouter.delete("/:id", deleteTask);
+taskRouter.delete("/:id", attachTask, authorizeOwner, deleteTask);
 
 export default taskRouter;
